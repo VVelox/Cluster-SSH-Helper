@@ -4,25 +4,26 @@ use warnings;
 use ExtUtils::MakeMaker;
 
 my %WriteMakefileArgs = (
-    NAME             => 'Cluster::SSH::Helper',
-    AUTHOR           => q{Zane C. Bowers-Hadley <vvelox@vvelox>},
-    VERSION_FROM     => 'lib/Cluster/SSH/Helper.pm',
-    ABSTRACT_FROM    => 'lib/Cluster/SSH/Helper.pm',
-    LICENSE          => 'artistic_2',
-    MIN_PERL_VERSION => '5.006',
-    CONFIGURE_REQUIRES => {
-        'ExtUtils::MakeMaker' => '0',
-    },
-    TEST_REQUIRES => {
-        'Test::More' => '0',
-    },
-    PREREQ_PM => {
-        #'ABC'              => '1.6',
-        #'Foo::Bar::Module' => '5.0401',
-    },
-    dist  => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
-    clean => { FILES => 'Cluster-SSH-Helper-*' },
-);
+						 NAME             => 'Cluster::SSH::Helper',
+						 AUTHOR           => q{Zane C. Bowers-Hadley <vvelox@vvelox>},
+						 VERSION_FROM     => 'lib/Cluster/SSH/Helper.pm',
+						 ABSTRACT_FROM    => 'lib/Cluster/SSH/Helper.pm',
+						 LICENSE          => 'artistic_2',
+						 MIN_PERL_VERSION => '5.006',
+						 CONFIGURE_REQUIRES => {
+												'ExtUtils::MakeMaker' => '0',
+												},
+						 TEST_REQUIRES => {
+										   'Test::More' => '0',
+										   },
+						 PREREQ_PM => {
+									   'Net::SNMP'=>'6.0.1',
+									   'Config::Tiny'=>'2.24',
+									   'Stirng::ShellQuote'=>'1.04',
+									   },
+						 dist  => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
+						 clean => { FILES => 'Cluster-SSH-Helper-*' },
+						 );
 
 # Compatibility with old versions of ExtUtils::MakeMaker
 unless (eval { ExtUtils::MakeMaker->VERSION('6.64'); 1 }) {

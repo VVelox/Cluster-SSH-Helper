@@ -3,6 +3,9 @@ package Cluster::SSH::Helper;
 use 5.006;
 use strict;
 use warnings;
+use Config::Tiny;
+use String::ShellQuote;
+use SNMP;
 
 =head1 NAME
 
@@ -10,12 +13,11 @@ Cluster::SSH::Helper - The great new Cluster::SSH::Helper!
 
 =head1 VERSION
 
-Version 0.01
+Version 0.0.1
 
 =cut
 
-our $VERSION = '0.01';
-
+our $VERSION = '0.0.1';
 
 =head1 SYNOPSIS
 
@@ -25,7 +27,7 @@ Perhaps a little code snippet.
 
     use Cluster::SSH::Helper;
 
-    my $foo = Cluster::SSH::Helper->new();
+    my $csh = Cluster::SSH::Helper->new();
     ...
 
 =head1 EXPORT
@@ -33,21 +35,505 @@ Perhaps a little code snippet.
 A list of functions that can be exported.  You can delete this section
 if you don't export anything, such as for a purely object-oriented module.
 
-=head1 SUBROUTINES/METHODS
+=head1 METHODS
 
-=head2 function1
+=head2 new
+
+Any initially obvious errors in the passed config or hosts config will result in
+this method dieing.
+
+=head3 config
+
+This is the general configuration.
+
+If not, the defaults are used.
+
+=head3 hosts
+
+This specifies the is a hash containing the host specific configuration.
+
+This must be defined.
 
 =cut
 
-sub function1 {
+sub new {
+    my $config = $_[ 1 ];
+    my $hosts  = $_[ 2 ];
+
+    # make sure we have a config and that it is a hash
+    if ( defined( $config ) ) {
+        if ( ref( $config ) ne 'HASH' ) {
+            die( 'The passed reference for the config is not a hash' );
+        }
+
+        if ( !defined( $config->{ '_' } ) ) {
+            $config->{ '_' } = {};
+        }
+
+        if ( defined( $config->{ '_' }{ 'env' } ) ) {
+            if ( !defined( $config->{ $config->{ '_' }{ 'env' } } ) ) {
+                die( '"' . $config->{ '_' }{ 'env' } . '" is specified as for $config->{_}{env} but it is undefined' );
+            }
+        }
+    }
+    else {
+        # ALL DEFAULTS!
+        $config = { '_' => {} };
+    }
+
+    # make sure we have a hosts and that it is a hash
+    if ( defined( $hosts ) ) {
+        if ( ref( $hosts ) ne 'HASH' ) {
+            die( 'The passed reference for the hosts is not a hash' );
+        }
+    }
+    else {
+        # this module is useless with out it
+        die( 'No hash reference passed for the hosts config' );
+    }
+
+    my $self = {
+				config  => $config,
+				hosts   => $hosts,
+				default => {
+							'timeout' => '500',
+							},
+				snmp_vars => {
+							  'version'         => 'Version',
+							  'community'       => 'Community',
+							  'port'            => 'RemotePort',
+							  'timeout'         => 'Timeout',
+							  'username'        => 'SecName',
+							  'authpassword'    => 'AuthPass',
+							  'authprotocol'    => 'AuthProto',
+							  'privpassword'    => 'PrivPass',
+							  'privprotocol'    => 'PrivProto',
+							  'secname'         => 'SecName',
+							  'seclevel'        => 'SecLevel',
+							  'secengineid'     => 'SecEngineId',
+							  'contextengineid' => 'ContextEngineId',
+							  'context'         => 'Context',
+							  'host'            => 'DestHost',
+							  },
+				};
+    bless $self;
+
+	# set defaults
+	if ( !defined( $self->{config}{_}{warn_on_poll} ) ) {
+		$self->{config}{_}{warn_on_poll} = 1;
+	}
+	if ( !defined( $self->{config}{_}{method} ) ) {
+		$self->{config}{_}{method} = 'load_1m';
+	}
+	if ( !defined( $self->{config}{_}{timeout} ) ) {
+		$self->{config}{_}{timeout} = '500';
+	}
+	if ( !defined( $self->{config}{_}{ssh} ) ) {
+		$self->{config}{_}{ssh} = 'ssh';
+	}
+
+    return $self;
 }
 
-=head2 function2
+=head2 run
+
+=head3 command
+
+This is a array to use for building the command that will be run.
+Basically thinking of it as @ARGV where $ARGV[0] will be the command
+and the rest will the the various flags etc.
+
+=head3 env
+
+This is a alternative env value to use if not using the defaults.
+
+=head3 method
+
+This is the selector method to use if not using the default.
+
+=head3 debug
+
+If set to true, returns the command in question after figuring out what it is.
 
 =cut
 
-sub function2 {
+sub run {
+    my $self = $_[ 0 ];
+    my $opts = $_[ 1 ];
+
+    # make sure we have the options
+    if ( !defined( $opts ) ) {
+        die( 'No options hash passed' );
+    }
+    else {
+        if ( ref( $opts ) ne 'HASH' ) {
+            die( 'The passed item was not a hash reference' );
+        }
+
+        if ( !defined( $opts->{ command } ) ) {
+            die( '$opts->{command} is not defined' );
+        }
+    }
+
+	# Gets the method to use
+	if (!defined( $opts->{method} )) {
+		$opts->{method}=$self->{config}{_}{method};
+	}
+
+	# gets the env to use
+	my $default_env;
+	if ( !defined( $opts->{env} ) ) {
+		if ( defined( $self->{config}{_}{env} ) ) {
+			$opts->{env} = $self->{config}{_}{env};
+		}
+		$default_env=1;
+	}
+
+	# _ is the root of the ini file... not a section, which are meant to be used as env
+	if ( $opts->{env} eq '_' ) {
+		die('"_" is not a valid name for a enviroment section');
+	}
+
+	# figure out what host to use
+	my $host;
+	if ( $opts->{method} eq 'load_1m' ) {
+		$host = $self->lowest_load_1n;
+	} elsif ( $opts->{method} eq 'ram_used_percent' ) {
+		$host = $self->lowest_used_ram_percent;
+	} else {
+		die( '"' . $opts->{method} . '" is not a valid method' );
+	}
+
+	# if we don't have a host, no point in proceeding
+	if (!defined($host)) {
+		die('Unable to get a host. Host chooser method returned undef.');
+	}
+
+	# real in host specific stuff
+	my $ssh_host = $host;
+	if ( defined( $self->{hosts}{$host}{host} ) ) {
+		$ssh_host = $self->{hosts}{$host}{host};
+	}
+	if ( defined( $self->{hosts}{$host}{env} ) && $default_env ) {
+		$opts->{env} = $self->{hosts}{$host}{env};
+	}
+
+	# makes sure the section exists if one was specified
+	my $env_command;
+	if ( defined( $opts->{env} )
+		 && !defined( $self->{config}{_}{ $opts->{env} } ) ) {
+		die(    '"'
+				. $opts->{env}
+				. '" is not a defined section in the config' );
+
+		# builds the env commant
+		$env_command = '/usr/bin/env';
+		foreach my $key ( keys( @{ $self->{config}{ $$opts->{env} } } ) ) {
+			$env_command =
+			$env_command . ' '
+			. shell_quote( shell_quote($key) ) . '='
+			. shell_quote(
+						  shell_quote( $self->{config}{ $opts->{env}{$key} } ) );
+		}
+
+	}
+
+	# the initial command to use
+	my $command = $self->{config}{_}{ssh};
+	if ( defined( $self->{config}{_}{ssh_user} ) ) {
+		$command =
+		$command . ' '
+		. shell_quote( $self->{config}{_}{ssh_user} ) . '@'
+		. shell_quote($ssh_host);
+	}
+
+	# add the env command if needed
+	if (defined($env_command)) {
+		$command=$command.' '.$env_command;
+	}
+
+	# add on each argument
+	foreach my $part ( @{ $opts->{command} } ) {
+		if ( defined($env_command) ) {
+			$command = $command . ' '
+			. shell_quote( shell_quote( shell_quote($part) ) );
+		} else {
+			$command = $command . ' ' . shell_quote( shell_quote($part) );
+		}
+	}
+
+	if ( $opts->{debug} ) {
+		return $command;
+	}
+
+	system($command);
+
+	return $?;
 }
+
+=head2 lowest_load_1n
+
+This returns the host with the lowest 1 minute load.
+
+    my $host = $csh->lowest_load_1m;
+
+=cut
+
+sub lowest_load_1n {
+    my $self = $_[ 0 ];
+
+    my @hosts = keys( %{ $self->{ hosts } } );
+
+	# holds a list of the 1 minute laod values for each host
+	my %host_loads;
+
+    foreach my $host (@hosts) {
+        my $snmp;
+        my $load;
+		# see if we can create it and fetch the OID
+        eval {
+            $snmp = $self->snmp_object_create($host);
+            $load = $snmp->get('1.3.6.1.4.1.2021.10.1.6.1');
+        };
+
+        my $poll_failed;
+        if ( $@ && $self->{config}{_}{warn_on_poll} ) {
+            warn( 'Polling for "' . $host . '" failed with... ' . $@ );
+            $poll_failed = 1;
+        }
+
+
+        if ( defined($load) ) {
+			# if we are here, then polling worked with out issue
+            $host_loads{$host} = $load;
+        } elsif ( defined($poll_failed)
+				  && !defined($load) ) {
+			# If here, it means the polling did not die, but it also did not work
+            warn( 'Polling for "' . $host . '" returned undef' );
+        }
+    }
+
+    my @sorted = sort { $host_loads{$a} <=> $host_loads{$b} } keys(%host_loads);
+
+	# we did not manage to poll anything... or thre are zero hosts
+	if (!defined($sorted[0])) {
+		die('There are either zero defined hosts or polling failed for all hosts');
+	}
+
+	return $sorted[0];
+}
+
+=head2 lowest_used_ram_percent
+
+This returns the host with the lowest percent of used RAM.
+
+    my $host = $csh->lowest_used_ram_percent;
+
+=cut
+
+sub lowest_used_ram_percent {
+    my $self = $_[ 0 ];
+
+    my @hosts = keys( %{ $self->{ hosts } } );
+
+	# holds a list of the 1 minute laod values for each host
+	my %hosts_polled;
+
+    foreach my $host (@hosts) {
+        my $snmp;
+        my $used;
+		my $total;
+		my $percent;
+        # see if we can create it and fetch the OID
+        eval {
+            $snmp  = $self->snmp_object_create($host);
+            $used  = $snmp->get('1.3.6.1.4.1.2021.4.6.0');
+            $total = $snmp->get('1.3.6.1.4.1.2021.4.5.0');
+            if (   !defined($used)
+                || !defined($total) ) {
+				# If we did not get either, we cam't proceed
+                die( 'Failed to get OID .1.3.6.1.4.1.2021.4.5.0 or .1.3.6.1.4.1.2021.4.6.0 for the host' );
+            }
+            $percent = $used / $total;
+        };
+
+        my $poll_failed;
+        if ( $@ && $self->{config}{_}{warn_on_poll} ) {
+            warn( 'Polling for "' . $host . '" failed with... ' . $@ );
+            $poll_failed = 1;
+        }
+
+        if ( defined($total) ) {
+			# if we are here, then polling worked with out issue
+            $hosts_polled{$host} = $percent;
+        } elsif ( defined($poll_failed)
+				  && !defined($percent) ) {
+			# If here, it means the polling did not die, but it also did not work
+            warn( 'Polling for "' . $host . '" returned undef' );
+        }
+    }
+
+    my @sorted = sort { $hosts_polled{$a} <=> $hosts_polled{$b} } keys(%hosts_polled);
+
+	# we did not manage to poll anything... or thre are zero hosts
+	if (!defined($sorted[0])) {
+		die('There are either zero defined hosts or polling failed for all hosts');
+	}
+
+	return $sorted[0];
+}
+
+=head2 snmp_object_create
+
+This creates the L<SNMP> object.
+
+One argument is required and that is the hostname to create it for.
+
+If this errors, it will die.
+
+    my $session;
+    eval{
+        my $session=$csh->snmp_object_create( $hostname );
+    };
+    if ($@){
+        die("Failed to create a session... ".$hostname);
+    }
+
+=cut
+
+sub snmp_object_create {
+    my $self = $_[ 0 ];
+    my $host = $_[ 1 ];
+
+    if (    !defined( $host )
+         || !defined( $self->{ hosts }{ $host } ) )
+    {
+        die( 'No host defined or host does not exist' );
+    }
+
+    my @snmp_vars = keys( %{ $self->{ snmp_vars } } );
+
+    # initialize the args and set the hostname
+    my %args = ( 'DestHost' => $host );
+
+    # go through the possible SNMP args looking for defined values and reel them in
+    foreach my $key ( @snmp_vars ) {
+
+        # the Net::SNMP argument name
+        my $arg_name = $self->{ snmp_vars }{ $key };
+
+        # general
+        if ( defined( $self->{ config }{ $key } ) ) {
+            $args{ $arg_name } = $self->{ config }{ $key };
+        }
+
+        #host specific over ride of general
+        if ( defined( $self->{ hosts }{ $host }{ $key } ) ) {
+            $args{ $arg_name } = $self->{ hosts }{ $host }{ $key };
+        }
+    }
+
+    my $session = SNMP::Session->new( %args );
+
+    return $session;
+}
+
+=head1 CONFIGURATOIN
+
+=head2 GENERAL
+
+The general configuration.
+
+This is written to be easily loadable via L<Config::Tiny>, hence why '_' is used.
+
+=head3 _
+
+This contains the default settings to use. Each of these may be over ridden on a per host basis.
+
+If use SNMPv3, please see L<Net::SNMP> for more information on the various session options.
+
+=head4 method
+
+This is default method to use for selecting the what host to run the command on. If not specified,
+'load' is used.
+
+    load_1m , checks 1 minute load and uses the lowest
+    ram_used_percent , uses the host with the lowest used percent of RAM
+
+=head4 ssh
+
+The default command to use for SSH.
+
+If not specified, just 'ssh' will be used.
+
+This should not include either user or host.
+
+=head4 ssh_user
+
+If specified, this will be the default user to use for SSH.
+
+If not specified, SSH is invoked with out specifying a user.
+
+=head4 env
+
+If specified, '/usr/bin/env' will be inserted before the command to be ran.
+
+The name=values pairs for this will be built using the hash key specified by this.
+
+=head4 version
+
+This is the SNMP version to use. '1', '2', or '3' is expected.
+
+If not specified 2 is used.
+
+=head4 community
+
+If version is set to 1 or 2, then this may be used to
+specify the SNMP community.
+
+If not specified, 'public' is used.
+
+=head4 port
+
+This is the SNMP port to use. If not specified, 161 is used.
+
+=head4 timeout
+
+This is the SNMP timeout to use in micro seconds . If not specified, it defaults to 500.
+
+=head4 warn_on_poll
+
+Issue a warn() on SNMP timeouts or other polling issues. This won't be a automatic failure. Simply timing out
+on SNMP means that host will be skipped and not considered.
+
+This defaults to 1, true.
+
+=head4 username
+
+If version is set to 3, this is the SNMP username field to use.
+
+=head4 authpassword
+
+If version is set to 3, this is the SNMP authpassword to use.
+
+=head4 authprotocol
+
+If version is set to 3, this is the SNMP authprotocol to use.
+
+=head4 privpassword
+
+If version is set to 3, this is the SNMP privpassword to use.
+
+=head4 privprotocol
+
+If version is set to 3, this is the SNMP prviprotocol to use.
+
+=head2 HOSTS
+
+This contains the hosts to connect to.
+
+Each key of this hash reference is name of the host in question. The value is a hash
+containing any desired over rides to the general config.
 
 =head1 AUTHOR
 
@@ -106,4 +592,4 @@ This is free software, licensed under:
 
 =cut
 
-1; # End of Cluster::SSH::Helper
+1;    # End of Cluster::SSH::Helper
