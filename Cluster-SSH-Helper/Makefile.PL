@@ -4,12 +4,12 @@ use warnings;
 use ExtUtils::MakeMaker;
 
 my %WriteMakefileArgs = (
-						 NAME             => 'Cluster::SSH::Helper',
-						 AUTHOR           => q{Zane C. Bowers-Hadley <vvelox@vvelox>},
-						 VERSION_FROM     => 'lib/Cluster/SSH/Helper.pm',
-						 ABSTRACT_FROM    => 'lib/Cluster/SSH/Helper.pm',
-						 LICENSE          => 'artistic_2',
-						 MIN_PERL_VERSION => '5.006',
+						 NAME               => 'Cluster::SSH::Helper',
+						 AUTHOR             => q{Zane C. Bowers-Hadley <vvelox@vvelox>},
+						 VERSION_FROM       => 'lib/Cluster/SSH/Helper.pm',
+						 ABSTRACT_FROM      => 'lib/Cluster/SSH/Helper.pm',
+						 LICENSE            => 'artistic_2',
+						 MIN_PERL_VERSION   => '5.006',
 						 CONFIGURE_REQUIRES => {
 												'ExtUtils::MakeMaker' => '0',
 												},
@@ -17,24 +17,24 @@ my %WriteMakefileArgs = (
 										   'Test::More' => '0',
 										   },
 						 PREREQ_PM => {
-									   'SNMP'=>'5.0404',
-									   'Config::Tiny'=>'2.24',
-									   'Stirng::ShellQuote'=>'1.04',
-									   'File::BaseDir'=>'0.08',
+									   'SNMP'               => '5.0404',
+									   'Config::Tiny'       => '2.24',
+									   'Stirng::ShellQuote' => '1.04',
+									   'File::BaseDir'      => '0.08',
 									   },
 						 dist  => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
-						 clean => { FILES => 'Cluster-SSH-Helper-*' },
+						 clean => { FILES    => 'Cluster-SSH-Helper-*' },
 						 );
 
 # Compatibility with old versions of ExtUtils::MakeMaker
-unless (eval { ExtUtils::MakeMaker->VERSION('6.64'); 1 }) {
+unless ( eval { ExtUtils::MakeMaker->VERSION('6.64'); 1 } ) {
     my $test_requires = delete $WriteMakefileArgs{TEST_REQUIRES} || {};
-    @{$WriteMakefileArgs{PREREQ_PM}}{keys %$test_requires} = values %$test_requires;
+    @{ $WriteMakefileArgs{PREREQ_PM} }{ keys %$test_requires } = values %$test_requires;
 }
 
-unless (eval { ExtUtils::MakeMaker->VERSION('6.55_03'); 1 }) {
+unless ( eval { ExtUtils::MakeMaker->VERSION('6.55_03'); 1 } ) {
     my $build_requires = delete $WriteMakefileArgs{BUILD_REQUIRES} || {};
-    @{$WriteMakefileArgs{PREREQ_PM}}{keys %$build_requires} = values %$build_requires;
+    @{ $WriteMakefileArgs{PREREQ_PM} }{ keys %$build_requires } = values %$build_requires;
 }
 
 delete $WriteMakefileArgs{CONFIGURE_REQUIRES}
