@@ -17,9 +17,10 @@ my %WriteMakefileArgs = (
 										   'Test::More' => '0',
 										   },
 						 PREREQ_PM => {
-									   'Net::SNMP'=>'6.0.1',
+									   'SNMP'=>'5.0404',
 									   'Config::Tiny'=>'2.24',
 									   'Stirng::ShellQuote'=>'1.04',
+									   'File::BaseDir'=>'0.08',
 									   },
 						 dist  => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
 						 clean => { FILES => 'Cluster-SSH-Helper-*' },

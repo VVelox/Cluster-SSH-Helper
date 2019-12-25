@@ -6,6 +6,7 @@ use warnings;
 use Config::Tiny;
 use String::ShellQuote;
 use SNMP;
+use File::BaseDir qw/xdg_config_home/;
 
 =head1 NAME
 
@@ -39,40 +40,29 @@ if you don't export anything, such as for a purely object-oriented module.
 
 =head2 new
 
-Any initially obvious errors in the passed config or hosts config will result in
-this method dieing.
+Any initially obvious errors in the passed config or hosts config will result in this method dieing.
 
-=head3 config
-
-This is the general configuration.
-
-If not, the defaults are used.
-
-=head3 hosts
-
-This specifies the is a hash containing the host specific configuration.
-
-This must be defined.
+Tho hash references are required . The first is the general config and the second is the hosts config.
 
 =cut
 
 sub new {
-    my $config = $_[ 1 ];
-    my $hosts  = $_[ 2 ];
+    my $config = $_[1];
+    my $hosts  = $_[2];
 
     # make sure we have a config and that it is a hash
-    if ( defined( $config ) ) {
-        if ( ref( $config ) ne 'HASH' ) {
-            die( 'The passed reference for the config is not a hash' );
+    if ( defined($config) ) {
+        if ( ref($config) ne 'HASH' ) {
+            die('The passed reference for the config is not a hash');
         }
 
-        if ( !defined( $config->{ '_' } ) ) {
-            $config->{ '_' } = {};
+        if ( !defined( $config->{'_'} ) ) {
+            $config->{'_'} = {};
         }
 
-        if ( defined( $config->{ '_' }{ 'env' } ) ) {
-            if ( !defined( $config->{ $config->{ '_' }{ 'env' } } ) ) {
-                die( '"' . $config->{ '_' }{ 'env' } . '" is specified as for $config->{_}{env} but it is undefined' );
+        if ( defined( $config->{'_'}{'env'} ) ) {
+            if ( !defined( $config->{ $config->{'_'}{'env'} } ) ) {
+                die( '"' . $config->{'_'}{'env'} . '" is specified as for $config->{_}{env} but it is undefined' );
             }
         }
     }
@@ -82,55 +72,88 @@ sub new {
     }
 
     # make sure we have a hosts and that it is a hash
-    if ( defined( $hosts ) ) {
-        if ( ref( $hosts ) ne 'HASH' ) {
-            die( 'The passed reference for the hosts is not a hash' );
+    if ( defined($hosts) ) {
+        if ( ref($hosts) ne 'HASH' ) {
+            die('The passed reference for the hosts is not a hash');
         }
     }
     else {
         # this module is useless with out it
-        die( 'No hash reference passed for the hosts config' );
+        die('No hash reference passed for the hosts config');
     }
 
     my $self = {
-				config  => $config,
-				hosts   => $hosts,
-				default => {
-							'timeout' => '500',
-							},
-				snmp_vars => {
-							  'version'         => 'Version',
-							  'community'       => 'Community',
-							  'port'            => 'RemotePort',
-							  'timeout'         => 'Timeout',
-							  'username'        => 'SecName',
-							  'authpassword'    => 'AuthPass',
-							  'authprotocol'    => 'AuthProto',
-							  'privpassword'    => 'PrivPass',
-							  'privprotocol'    => 'PrivProto',
-							  'secname'         => 'SecName',
-							  'seclevel'        => 'SecLevel',
-							  'secengineid'     => 'SecEngineId',
-							  'contextengineid' => 'ContextEngineId',
-							  'context'         => 'Context',
-							  'host'            => 'DestHost',
-							  },
-				};
+        config  => $config,
+        hosts   => $hosts,
+        default => {
+            'timeout' => '500',
+        },
+        snmp_vars => {
+            'version'         => 'Version',
+            'community'       => 'Community',
+            'port'            => 'RemotePort',
+            'timeout'         => 'Timeout',
+            'username'        => 'SecName',
+            'authpassword'    => 'AuthPass',
+            'authprotocol'    => 'AuthProto',
+            'privpassword'    => 'PrivPass',
+            'privprotocol'    => 'PrivProto',
+            'secname'         => 'SecName',
+            'seclevel'        => 'SecLevel',
+            'secengineid'     => 'SecEngineId',
+            'contextengineid' => 'ContextEngineId',
+            'context'         => 'Context',
+            'host'            => 'DestHost',
+        },
+    };
     bless $self;
 
-	# set defaults
-	if ( !defined( $self->{config}{_}{warn_on_poll} ) ) {
-		$self->{config}{_}{warn_on_poll} = 1;
-	}
-	if ( !defined( $self->{config}{_}{method} ) ) {
-		$self->{config}{_}{method} = 'load_1m';
-	}
-	if ( !defined( $self->{config}{_}{timeout} ) ) {
-		$self->{config}{_}{timeout} = '500';
-	}
-	if ( !defined( $self->{config}{_}{ssh} ) ) {
-		$self->{config}{_}{ssh} = 'ssh';
-	}
+    # set defaults
+    if ( !defined( $self->{config}{_}{warn_on_poll} ) ) {
+        $self->{config}{_}{warn_on_poll} = 1;
+    }
+    if ( !defined( $self->{config}{_}{method} ) ) {
+        $self->{config}{_}{method} = 'load_1m';
+    }
+    if ( !defined( $self->{config}{_}{timeout} ) ) {
+        $self->{config}{_}{timeout} = '500';
+    }
+    if ( !defined( $self->{config}{_}{ssh} ) ) {
+        $self->{config}{_}{ssh} = 'ssh';
+    }
+
+    return $self;
+}
+
+=head1 new_from_ini
+
+Initiates the this object from a file contiaining the general config and host confg
+from two INI files.
+
+=cut
+
+sub new_from_ini {
+    my $config_file = $_[1];
+    my $hosts_file  = $_[2];
+
+    if ( !defined($config_file) ) {
+        $config_file = xdg_config_home . '/cluster-ssh-helper/config.ini';
+    }
+    if ( !defined($hosts_file) ) {
+        $hosts_file = xdg_config_home . '/cluster-ssh-helper/hosts.ini';
+    }
+
+    my $config = Config::Tiny->read($config_file);
+    if ( !defined($config) ) {
+        die( "Failed to read '" . $config_file . "'" );
+    }
+
+    my $hosts = Config::Tiny->read($hosts_file);
+    if ( !defined($hosts) ) {
+        die( 'Failed to read"' . $hosts_file . '"' );
+    }
+
+    my $self = Cluster::SSH::Helper->new( $config, $hosts );
 
     return $self;
 }
