@@ -17,7 +17,6 @@ my %WriteMakefileArgs = (
 										   'Test::More' => '0',
 										   },
 						 PREREQ_PM => {
-									   'SNMP'               => '5.0404',
 									   'Config::Tiny'       => '2.24',
 									   'Stirng::ShellQuote' => '1.04',
 									   'File::BaseDir'      => '0.08',

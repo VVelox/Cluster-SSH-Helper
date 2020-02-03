@@ -20,6 +20,7 @@ sub help{
 -c <file>    Config file.
 -h <file>    Hosts file.
 -m <method>  Selection to use.
+-p           Print the final command before running it.
 ';
 }
 
@@ -30,15 +31,19 @@ if (!defined( $ARGV[0] )) {
 my $config_file;
 my $hosts_file;
 my $method;
+my $print_cmd;
 my $command=join(' ', @ARGV);
 
 # get the commandline options
 Getopt::Long::Configure ('no_ignore_case');
 Getopt::Long::Configure ('bundling');
+Getopt::Long::Configure ('pass_through');
+Getopt::Long::Configure ('require_order');
 GetOptions(
 		   'c=s'=>\$config_file,
 		   'h=s'=>\$hosts_file,
 		   'm=s'=>\$method,
+		   'p'=>\$print_cmd,
 		   );
 
 my $csh=Cluster::SSH::Helper->new_from_ini( $config_file, $hosts_file );
@@ -46,4 +51,5 @@ my $csh=Cluster::SSH::Helper->new_from_ini( $config_file, $hosts_file );
 $csh->run({
 		   command=>\@ARGV,
 		   method=>$method,
+		   print_cmd=>$print_cmd,
 		   });

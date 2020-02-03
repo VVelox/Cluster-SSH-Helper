@@ -5,7 +5,6 @@ use strict;
 use warnings;
 use Config::Tiny;
 use String::ShellQuote;
-use SNMP;
 use File::BaseDir qw/xdg_config_home/;
 
 =head1 NAME
@@ -177,6 +176,10 @@ This is the selector method to use if not using the default.
 
 If set to true, returns the command in question after figuring out what it is.
 
+=head3 print_cmd
+
+Prints the command before running it.
+
     eval({
         $csh->run({
                    command=>'uname -a',
@@ -294,7 +297,13 @@ sub run {
 		return $command;
 	}
 
-	print $command."\n";
+	if (
+		defined($opts->{print_cmd}) &&
+		$opts->{print_cmd}
+		) {
+		print $command."\n";
+	}
+
 	system($command);
 
 	return $?;
