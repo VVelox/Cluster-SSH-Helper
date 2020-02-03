@@ -48,7 +48,7 @@ GetOptions(
 
 my $csh=Cluster::SSH::Helper->new_from_ini( $config_file, $hosts_file );
 
-$csh->run({
+exit $csh->run({
 		   command=>\@ARGV,
 		   method=>$method,
 		   print_cmd=>$print_cmd,
