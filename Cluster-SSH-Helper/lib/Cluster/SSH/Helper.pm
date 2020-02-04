@@ -574,6 +574,10 @@ L<https://cpanratings.perl.org/d/Cluster-SSH-Helper>
 
 L<https://metacpan.org/release/Cluster-SSH-Helper>
 
+=item * Repository
+
+L<https://github.com/VVelox/Cluster-SSH-Helper>
+
 =back
 
 
