@@ -9,7 +9,7 @@ use File::BaseDir qw/xdg_config_home/;
 
 =head1 NAME
 
-Cluster::SSH::Helper - The great new Cluster::SSH::Helper!
+Cluster::SSH::Helper - Poll machines in a cluster via SNMP and determine which to run a command on.
 
 =head1 VERSION
 
@@ -21,14 +21,21 @@ our $VERSION = '0.1.0';
 
 =head1 SYNOPSIS
 
-Quick summary of what the module does.
-
-Perhaps a little code snippet.
-
     use Cluster::SSH::Helper;
 
-    my $csh = Cluster::SSH::Helper->new();
-    ...
+    my $csh;
+    eval({
+        # config using...
+        # ~/.config/cluster-ssh-helper/hosts.ini
+        # ~/.config/cluster-ssh-helper/config.ini
+        $csh= Cluster::SSH::Helper->new_from_ini();
+    });
+    if ( $@ ){
+        die( 'Cluster::SSH::Helper->new_from_ini failed... '.$@ );
+    }
+
+    # Run the command on the machine with the lowest 1m load.
+    $csh->run({ command=>'uname -a' });
 
 =head1 METHODS
 
@@ -250,23 +257,24 @@ sub run {
 	}
 
 	# makes sure the section exists if one was specified
-	my $env_command;
 	if ( defined( $opts->{env} )
-		 && !defined( $self->{config}{_}{ $opts->{env} } ) ) {
+		 && !defined( $self->{config}{ $opts->{env} } ) ) {
 		die(    '"'
 				. $opts->{env}
 				. '" is not a defined section in the config' );
+	}
 
+	# build the env section if needed.
+	my $env_command;
+	if ( defined( $opts->{env} ) ) {
 		# builds the env commant
 		$env_command = '/usr/bin/env';
-		foreach my $key ( keys( @{ $self->{config}{ $$opts->{env} } } ) ) {
-			$env_command =
-			$env_command . ' '
+		foreach my $key ( keys( %{ $self->{config}{'test'} } ) ) {
+			$env_command
+			= $env_command . ' '
 			. shell_quote( shell_quote($key) ) . '='
-			. shell_quote(
-						  shell_quote( $self->{config}{ $opts->{env}{$key} } ) );
+			. shell_quote( shell_quote( $self->{config}{ $opts->{env} }{$key} ) );
 		}
-
 	}
 
 	# the initial command to use
@@ -539,9 +547,6 @@ Please report any bugs or feature requests to C<bug-cluster-ssh-helper at rt.cpa
 the web interface at L<https://rt.cpan.org/NoAuth/ReportBug.html?Queue=Cluster-SSH-Helper>.  I will be notified, and then you'll
 automatically be notified of progress on your bug as I make changes.
 
-
-
-
 =head1 SUPPORT
 
 You can find documentation for this module with the perldoc command.
@@ -577,7 +582,7 @@ L<https://metacpan.org/release/Cluster-SSH-Helper>
 
 =head1 LICENSE AND COPYRIGHT
 
-This software is Copyright (c) 2019 by Zane C. Bowers-Hadley.
+This software is Copyright (c) 2020 by Zane C. Bowers-Hadley.
 
 This is free software, licensed under:
 
