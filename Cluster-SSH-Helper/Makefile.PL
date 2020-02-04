@@ -10,6 +10,7 @@ my %WriteMakefileArgs = (
 						 ABSTRACT_FROM      => 'lib/Cluster/SSH/Helper.pm',
 						 LICENSE            => 'artistic_2',
 						 MIN_PERL_VERSION   => '5.006',
+						 INST_SCRIPT => 'bin',
 						 CONFIGURE_REQUIRES => {
 												'ExtUtils::MakeMaker' => '0',
 												},
@@ -18,7 +19,7 @@ my %WriteMakefileArgs = (
 										   },
 						 PREREQ_PM => {
 									   'Config::Tiny'       => '2.24',
-									   'Stirng::ShellQuote' => '1.04',
+									   'String::ShellQuote' => '1.04',
 									   'File::BaseDir'      => '0.08',
 									   },
 						 dist  => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
